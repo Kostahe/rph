@@ -84,7 +84,7 @@ class OpponentAnalyzer:
 
     def __init__(
         self,
-        my_moves:list[bool],
+        my_moves: list[bool],
         opponent_moves: list[bool]
     ):
         self.my_history = my_moves
