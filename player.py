@@ -4,7 +4,8 @@ class Player:
     MEMORY_SIZE = 5
     OBSERVATION_ROUNDS = 5
     SHORT_GAME_THRESHOLD = 5
-    ANALYSIS_THRESHOLD = 0.8
+    HIGH_ANALYSIS_THRESHOLD = 0.8
+    HALF_ANALYSIS_THRESHOLD =0.5
 
     def __init__(
         self,
@@ -40,29 +41,30 @@ class Player:
 
         cooperation_rate = opponent_analyzer.cooperation_rate()
         defection_rate = opponent_analyzer.defection_rate()
-        tit_for_tat_rate = opponent_analyzer.tit_for_tat_rate()
+        retaliation_rate = opponent_analyzer.retaliation_rate()
+        cooperation_response_rate = opponent_analyzer.cooperation_response_rate()
 
-        if  cooperation_rate >= self.ANALYSIS_THRESHOLD:
+        if cooperation_response_rate > self.HIGH_ANALYSIS_THRESHOLD and retaliation_rate > self.HIGH_ANALYSIS_THRESHOLD:
+            cooperate_value = cc
+            alternate_value = (cd + dc) / 2
+                    
+            if cooperate_value >= alternate_value:
+                return False
+            return not self.my_last_move
+
+        if cooperation_rate >= self.HIGH_ANALYSIS_THRESHOLD:
             cooperate_value = cc
             defect_value = dc
             if defect_value > cooperate_value:
                 return True
             return False
 
-        if defection_rate >= self.ANALYSIS_THRESHOLD:
+        if defection_rate >= self.HIGH_ANALYSIS_THRESHOLD:
             cooperate_value = cd
             defect_value = dd
             if cooperate_value > defect_value:
                 return False
             return True
-
-        if tit_for_tat_rate >= self.ANALYSIS_THRESHOLD:
-            cooperate_value = cc
-            alternate_value = (cd + dc) / 2
-
-            if cooperate_value >= alternate_value:
-                return False
-            return not self.my_last_move
         
         return self.opponent_last_move
     
@@ -100,15 +102,35 @@ class OpponentAnalyzer:
 
         return recent_moves.count(False) / len(recent_moves)
 
-    def tit_for_tat_rate(self) -> float:
-        my_recent_moves = self.my_history[-self.ANALYSE_WINDOW:]
-        opponent_recent_moves = self.opponent_history[-self.ANALYSE_WINDOW:]
-        counter = 0
+    def retaliation_rate(self) -> float:
+        detections = 0
+        reactions = 0
 
-        for i in range(1, len(my_recent_moves)):
-            if opponent_recent_moves[i] == my_recent_moves[i - 1]:
-                counter += 1
-        return counter / (len(my_recent_moves) - 1)
+        for i in range(1, len(self.my_history)):
+            if self.my_history[i - 1]:
+                detections += 1
+                if self.opponent_history[i]:
+                    reactions += 1
+
+        if detections == 0:
+            return 0.0
+
+        return reactions / detections
+    
+    def cooperation_response_rate(self) -> float:
+        cooperations = 0
+        reactions = 0
+
+        for i in range(1, len(self.my_history)):
+            if not self.my_history[i - 1]:
+                cooperations += 1
+                if not self.opponent_history[i]:
+                    reactions += 1
+
+        if cooperations == 0:
+            return 0.0
+            
+        return reactions / cooperations
 
 class Memory:
     """ Pomocna klasa, ktera uklada posledni tahy pomoci circular bufferu """
