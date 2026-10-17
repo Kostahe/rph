@@ -1,11 +1,10 @@
 class Player:
-    """ Hrac hraje, tak ze analyzuje tahy soupere a podle nej voli svuj dalsi tah """
+    """Analyzes the opponent's moves and chooses the next move"""
 
     MEMORY_SIZE = 5
-    OBSERVATION_ROUNDS = 5
-    SHORT_GAME_THRESHOLD = 5
+    OBSERVATION_ROUNDS = 6
+    SHORT_GAME_THRESHOLD = 10
     HIGH_ANALYSIS_THRESHOLD = 0.8
-    HALF_ANALYSIS_THRESHOLD =0.5
 
     def __init__(
         self,
@@ -24,14 +23,15 @@ class Player:
         self.round_counter = 0
 
     def select_move(self) -> bool:
-        analyze_opponent = self.round_counter >= self.OBSERVATION_ROUNDS
-
         cc = self.payoff_matrix[False][False][0]
         cd = self.payoff_matrix[False][True][0]
         dc = self.payoff_matrix[True][False][0]
         dd = self.payoff_matrix[True][True][0]
 
-        if not analyze_opponent:
+        if self.number_of_iterations and self.number_of_iterations - 1 == self.round_counter:
+            return True
+
+        if self.round_counter < self.OBSERVATION_ROUNDS:
             return self.opponent_last_move
 
         opponent_analyzer = OpponentAnalyzer(
@@ -41,10 +41,21 @@ class Player:
 
         cooperation_rate = opponent_analyzer.cooperation_rate()
         defection_rate = opponent_analyzer.defection_rate()
-        retaliation_rate = opponent_analyzer.retaliation_rate()
+        defection_response_rate = opponent_analyzer.defection_response_rate()
         cooperation_response_rate = opponent_analyzer.cooperation_response_rate()
 
-        if cooperation_response_rate > self.HIGH_ANALYSIS_THRESHOLD and retaliation_rate > self.HIGH_ANALYSIS_THRESHOLD:
+        if defection_rate >= self.HIGH_ANALYSIS_THRESHOLD:
+            cooperate_value = cd
+            defect_value = dd
+
+            if cooperate_value > defect_value:
+                return False
+            return True
+
+        if (
+            cooperation_response_rate > self.HIGH_ANALYSIS_THRESHOLD and
+            defection_response_rate > self.HIGH_ANALYSIS_THRESHOLD
+        ):
             cooperate_value = cc
             alternate_value = (cd + dc) / 2
                     
@@ -58,13 +69,6 @@ class Player:
             if defect_value > cooperate_value:
                 return True
             return False
-
-        if defection_rate >= self.HIGH_ANALYSIS_THRESHOLD:
-            cooperate_value = cd
-            defect_value = dd
-            if cooperate_value > defect_value:
-                return False
-            return True
         
         return self.opponent_last_move
     
@@ -80,7 +84,7 @@ class Player:
         self.round_counter += 1
 
 class OpponentAnalyzer:
-    """ Pomocna klasa ktera analyzuje nedavne tahy soupere a odhaduje jeho chovani """
+    """Analyzes the opponent's recent moves and estimates its behavior"""
 
     ANALYSE_WINDOW = 5
 
@@ -90,7 +94,7 @@ class OpponentAnalyzer:
         opponent_moves: list[bool]
     ):
         self.my_history = my_moves
-        self.opponent_history = opponent_moves
+        self.opponent_history = opponent_moves  
 
     def defection_rate(self) -> float:
         recent_moves = self.opponent_history[-self.ANALYSE_WINDOW:]
@@ -102,20 +106,20 @@ class OpponentAnalyzer:
 
         return recent_moves.count(False) / len(recent_moves)
 
-    def retaliation_rate(self) -> float:
-        detections = 0
+    def defection_response_rate(self) -> float:
+        defections = 0
         reactions = 0
 
         for i in range(1, len(self.my_history)):
             if self.my_history[i - 1]:
-                detections += 1
+                defections += 1
                 if self.opponent_history[i]:
                     reactions += 1
 
-        if detections == 0:
+        if defections == 0:
             return 0.0
 
-        return reactions / detections
+        return reactions / defections
     
     def cooperation_response_rate(self) -> float:
         cooperations = 0
@@ -133,7 +137,8 @@ class OpponentAnalyzer:
         return reactions / cooperations
 
 class Memory:
-    """ Pomocna klasa, ktera uklada posledni tahy pomoci circular bufferu """
+    """Stores the most recent moves using a circular buffer"""
+
     def __init__(self, size: int):
         self.size = size
         self.data = [None] * size
